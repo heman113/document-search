@@ -20,6 +20,7 @@ import app from "../app";
 import { pool } from "../db";
 import { ingestDocument } from "../ingestion";
 import { searchDocuments } from "../search";
+import { Result } from "pg";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -110,3 +111,103 @@ describe("Search request validation", () => {
     },
   );
 });
+
+describe("Successful search requests", () => {
+  const searchPayload = {
+    tenantId: "tenant-1",
+    query: "How does vector search work",
+  };
+
+  const mockResults = [
+    {
+      id: "doc-1",
+      external_id: "external-1",
+      title: "Vector search",
+      content: "Vector search use embeddings",
+      category: "engineering",
+      tags: ["AI", "search"],
+      similarity: 0.95,
+      distance: 0.05
+    }
+  ];
+
+  it.each(["/search", "/search/exact"])(
+    "returns exact search result from %s",
+    async (endpoint) => {
+      vi.mocked(searchDocuments).mockResolvedValue(
+        mockResults as never,
+      );
+      const response = await request(app)
+      .post(endpoint)
+      .send(searchPayload);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        mode: "exact",
+        count: 1,
+        results: mockResults
+      });
+
+      expect(searchDocuments).toHaveBeenCalledWith(
+        {
+          ...searchPayload,
+          limit: 5,
+        },
+        "exact",
+      );
+    }
+  );
+
+  it("returns ANN search results", async () => {
+    vi.mocked(searchDocuments).mockResolvedValue(
+      mockResults as never,
+    );
+
+    const response = await request(app)
+      .post("/search/ann")
+      .send(searchPayload);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      mode: "hnsw",
+      count: 1,
+      results: mockResults,
+    });
+
+    expect(searchDocuments).toHaveBeenCalledWith(
+      {
+        ...searchPayload,
+        limit: 5,
+      },
+      "ann",
+    );
+  });
+});
+
+describe("Search error handling", () => {
+  it("returns 500 when search fails", async () => {
+    vi.mocked(searchDocuments).mockRejectedValue(
+      new Error("Database query failed"),
+    );
+
+    const consoleSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const response = await request(app)
+      .post("/search")
+      .send({
+        tenantId: "tenant-1",
+        query: "test query",
+      });
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      error: "Internal server error",
+    });
+
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+})
