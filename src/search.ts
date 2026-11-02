@@ -22,7 +22,7 @@ export async function searchDocuments(
     try{
         await client.query("BEGIN");
 
-        if(mode == "exact") {
+        if(mode === "exact") {
             await client.query("SET LOCAL enable_indexscan = off");
         }else{
             await client.query("SET LOCAL enable_seqscan = off");
@@ -34,17 +34,17 @@ export async function searchDocuments(
         ];
 
         const filters: string[] = [
-            "tenant_id = $2"
+            "d.tenant_id = $2"
         ]
 
         if(input.category) {
             params.push(input.category);
-            filters.push(`category = $${params.length}`);
+            filters.push(`d.category = $${params.length}`);
         }
 
         if(input.tags?.length) {
             params.push(input.tags),
-            filters.push(`tags && $${params.length}::text[]`);
+            filters.push(`d.tags && $${params.length}::text[]`);
         }
 
         params.push(input.limit);
@@ -52,17 +52,21 @@ export async function searchDocuments(
 
         const sql = `
             SELECT
-                id,
-                external_id,
-                title,
-                content,
-                category,
-                tags,
-                1 - (embedding <=> $1::vector) AS similarity,
-                embedding <=> $1::vector AS distance
-            FROM documents
+                c.id,
+                c.document_id,
+                c.chunk_index,
+                c.content,
+                d.external_id,
+                d.title,
+                d.category,
+                d.tags,
+                1 - (c.embedding <=> $1::vector) AS similarity,
+                c.embedding <=> $1::vector AS distance
+            FROM document_chunks c
+            INNER JOIN documents d
+                ON d.id = c.document_id
             WHERE ${filters.join(" AND ")}
-            ORDER BY embedding <=> $1::vector
+            ORDER BY c.embedding <=> $1::vector
             LIMIT ${limitPlaceholder}
         `;
 

@@ -18,6 +18,39 @@ interface ChunkOptions {
 const DEFAULT_CHUNK_SIZE = 1000;
 const DEFAULT_CHUNK_OVERLAP = 150;
 
+const SEPARATORS = [
+    "\n\n",
+    "\n",
+    ".",
+    "?",
+    "!",
+    " ",
+]
+
+function findBoundry(
+    windowText: string,
+    chunkSize: number,
+    chunkOverlap: number
+): number | null {
+    const minimumSize = Math.max(Math.ceil(chunkSize * 0.7), chunkOverlap + 1);
+
+    for (const separator of SEPARATORS) {
+        const position = windowText.lastIndexOf(separator);
+
+        if (position === -1) {
+            continue;
+        }
+        const boundryText = windowText.slice(0, position + separator.length);
+
+        const tokenCount = encoding.encode(boundryText).length;
+
+        if (tokenCount >= minimumSize && tokenCount <= chunkSize) {
+            return tokenCount;
+        }
+    }
+    return null;
+}
+
 export function chunkDocument(
     text: string,
     options: ChunkOptions = {}
@@ -43,24 +76,41 @@ export function chunkDocument(
     const tokens = encoding.encode(normalizedtext);
     const chunks: Chunk[] = [];
 
-    const step = chunkSize - chunkOverlap;
+    let startToken = 0;
+    let chunkIndex = 0;
 
-    for (
-        let startToken = 0, chunkIndex = 0;
-        startToken < tokens.length;
-        startToken += step, chunkIndex++
-    ) {
-        const endToken = Math.min(startToken + chunkSize, tokens.length);
+    while (startToken < tokens.length) {
+        const maxEndToken = Math.min(startToken + chunkSize, tokens.length);
+        let endToken = maxEndToken;
+
+        if (maxEndToken < tokens.length) {
+            const windowText = encoding.decode(tokens.slice(startToken, maxEndToken));
+            const boundryTokenCount = findBoundry(
+                windowText,
+                chunkSize,
+                chunkOverlap
+            );
+            if (boundryTokenCount !== null) {
+                endToken = startToken + boundryTokenCount;
+            }
+        }
+
         const chunkTokens = tokens.slice(startToken, endToken);
-        const content = encoding.decode(chunkTokens);
-
         chunks.push({
             chunkIndex,
-            content,
+            content: encoding.decode(chunkTokens),
             startToken,
             endToken,
-            tokenCount: endToken - startToken,
+            tokenCount: chunkTokens.length
         });
+
+        if (endToken === tokens.length) {
+            break;
+        }
+
+        startToken = endToken - chunkOverlap;
+        chunkIndex++;
     }
+    
     return chunks;
 }

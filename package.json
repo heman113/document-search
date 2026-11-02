@@ -11,7 +11,8 @@
     "migrate:up": "node-pg-migrate up --envPath .env",
     "migrate:down": "node-pg-migrate down --envPath .env",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backfill:chunks": "npm run build && node dist/scripts/backfill-chunks.js"
   },
   "keywords": [],
   "author": "",

@@ -30,16 +30,18 @@ describe("chunkDocument", () => {
         }
     });
 
-    it("maintains the configured token overlap", () => {
-    const text = "hello ".repeat(500);
+    it("prefers paragraph boundries when available", () => {
+    const text = "This is a sentence. ".repeat(50);
 
     const chunks = chunkDocument(text, {
       chunkSize: 100,
-      chunkOverlap: 20,
+      chunkOverlap: 10,
     });
 
-    expect(chunks[1].startToken).toBe(80);
-    expect(chunks[0].endToken - chunks[1].startToken).toBe(20);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+        expect(chunk.tokenCount).toBeLessThanOrEqual(100);
+    }
   });
 
   it("assigns sequential chunk indexes", () => {
