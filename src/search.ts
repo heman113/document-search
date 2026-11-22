@@ -47,6 +47,14 @@ export async function searchDocuments(
             filters.push(`d.tags && $${params.length}::text[]`);
         }
 
+        if (input.minSimilarity !== undefined) {
+            params.push(input.minSimilarity);
+
+            filters.push(
+                `(1 - (c.embedding <=> $1::vector)) >= $${params.length}`
+            );
+        }
+
         params.push(input.limit);
         const limitPlaceholder = `$${params.length}`;
 

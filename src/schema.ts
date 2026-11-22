@@ -15,6 +15,7 @@ export const searchSchema = z.object({
     category: z.string().max(100).optional(),
     tags: z.array(z.string().min(1).max(50)).max(30).optional(),
     limit: z.number().int().min(1).max(20).default(5),
+    minSimilarity: z.number().min(0).max(1).optional(),
 })
 
 export type DocumentInput = z.infer<typeof documentSchema>;
